@@ -61,6 +61,51 @@ def _submission(out: dict) -> dict:
     }
 
 
+def _combined_tally(result: dict) -> dict:
+    """Normalize single- or multi-repo outcome counts into one tally shape."""
+    tally = result.get("tally")
+    if isinstance(tally, dict):
+        return {
+            "challenger": int(tally.get("challenger", 0) or 0),
+            "baseline": int(tally.get("baseline", 0) or 0),
+            "tie": int(tally.get("tie", 0) or 0),
+        }
+    combined = {"challenger": 0, "baseline": 0, "tie": 0}
+    for repo in result.get("per_repo", []):
+        row = repo.get("tally")
+        if not isinstance(row, dict):
+            continue
+        for key in combined:
+            combined[key] += int(row.get(key, 0) or 0)
+    return combined
+
+
+def result_report(result: dict) -> dict:
+    """Small replay-report summary, tolerant of legacy artifacts without judge telemetry."""
+    tally = _combined_tally(result)
+    stats = result.get("judge_order_stats")
+    if not isinstance(stats, dict):
+        stats = {}
+    report = {
+        "wins": tally["challenger"],
+        "losses": tally["baseline"],
+        "ties": tally["tie"],
+        "judge_disagreement_rate": stats.get("disagreement_rate"),
+        "judge_dual_order_tasks": stats.get("dual_order_tasks"),
+    }
+    if "per_repo" in result:
+        report["scored_repos"] = int(result.get("scored_repos", 0) or 0)
+        report["skipped_repos"] = int(result.get("skipped", 0) or 0)
+    return report
+
+
+def serialize_result(result: dict) -> dict:
+    """Return a JSON-ready replay artifact with a stable summary report attached."""
+    artifact = dict(result)
+    artifact["report"] = result_report(result)
+    return artifact
+
+
 def _is_placeholder_source(source: str) -> bool:
     return "OWNER/" in source
 

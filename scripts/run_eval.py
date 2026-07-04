@@ -9,7 +9,7 @@ import argparse
 import json
 
 from benchmark.baselines import BASELINES, DEFAULT_BASELINE
-from benchmark.runner import run_multi_replay, run_replay
+from benchmark.runner import run_multi_replay, run_replay, serialize_result
 
 
 def main() -> None:
@@ -63,7 +63,7 @@ def main() -> None:
         result = run_multi_replay(args.repos, **common)
     else:
         result = run_replay(repo_path=args.repo, **common)
-    print(json.dumps(result, indent=2))
+    print(json.dumps(serialize_result(result), indent=2))
 
 
 if __name__ == "__main__":

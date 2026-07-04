@@ -120,6 +120,7 @@ The `--repos` aggregate result shape is:
   "skipped": 0,          // repos too small for the horizon (kept below, excluded from the mean)
   "composite_mean": 0.6, // mean of each scored repo's composite_mean
   "composite_parts": { "judge_mean": 1.0, "objective_mean": 0.0 },  // means of the per-repo parts
+  "report": { "wins": 4, "losses": 2, "ties": 4, "judge_disagreement_rate": 0.1 }, // quick trend summary
   "per_repo": [ /* each repo's full run_replay result, or its {"error": ...} */ ]
 }
 ```

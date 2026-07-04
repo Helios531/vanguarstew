@@ -19,7 +19,12 @@ if ROOT not in sys.path:
 os.environ["VANGUARSTEW_OFFLINE"] = "1"
 
 from benchmark.repo_set import RepoSetError  # noqa: E402
-from benchmark.runner import run_multi_replay, run_replay  # noqa: E402
+from benchmark.runner import (  # noqa: E402
+    result_report,
+    run_multi_replay,
+    run_replay,
+    serialize_result,
+)
 
 AGENT = os.path.join(ROOT, "agent.py")
 
@@ -59,6 +64,13 @@ def test_single_run_reports_composite_mean_and_parts():
             sum(r["composite"] for r in res["rows"]) / len(res["rows"]), 3)
         assert res["judge_order_stats"]["offline"] == len(res["rows"])
         assert res["judge_order_stats"]["disagreement_rate"] is None
+        assert serialize_result(res)["report"] == {
+            "wins": res["tally"]["challenger"],
+            "losses": res["tally"]["baseline"],
+            "ties": res["tally"]["tie"],
+            "judge_disagreement_rate": None,
+            "judge_dual_order_tasks": 0,
+        }
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
@@ -89,6 +101,9 @@ def test_multi_repo_aggregates_and_is_deterministic():
         }
         assert res["judge_order_stats"]["offline"] == sum(
             len(r["rows"]) for r in res["per_repo"])
+        assert serialize_result(res)["report"]["judge_disagreement_rate"] is None
+        assert serialize_result(res)["report"]["ties"] == sum(
+            r["tally"]["tie"] for r in res["per_repo"])
 
         # deterministic under a fixed seed
         res2 = run_multi_replay([a, b], **kw)
@@ -164,3 +179,38 @@ def test_repo_set_replay_rejects_placeholder_sources():
             run_multi_replay(repo_set=cfg, agent_file=AGENT, n_tasks=1, horizon=1, seed=0)
     finally:
         shutil.rmtree(cfg_dir, ignore_errors=True)
+
+
+def test_result_report_handles_legacy_artifacts_without_judge_order_stats():
+    legacy = {
+        "tasks": 2,
+        "tally": {"challenger": 1, "baseline": 0, "tie": 1},
+        "rows": [],
+    }
+    assert result_report(legacy) == {
+        "wins": 1,
+        "losses": 0,
+        "ties": 1,
+        "judge_disagreement_rate": None,
+        "judge_dual_order_tasks": None,
+    }
+
+    modern_multi = {
+        "scored_repos": 2,
+        "skipped": 1,
+        "judge_order_stats": {"disagreement_rate": 0.25, "dual_order_tasks": 4},
+        "per_repo": [
+            {"tally": {"challenger": 1, "baseline": 0, "tie": 1}},
+            {"tally": {"challenger": 0, "baseline": 2, "tie": 0}},
+            {"error": "no usable tasks", "tasks": 0},
+        ],
+    }
+    assert serialize_result(modern_multi)["report"] == {
+        "wins": 1,
+        "losses": 2,
+        "ties": 1,
+        "judge_disagreement_rate": 0.25,
+        "judge_dual_order_tasks": 4,
+        "scored_repos": 2,
+        "skipped_repos": 1,
+    }
